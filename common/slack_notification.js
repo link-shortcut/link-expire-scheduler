@@ -1,5 +1,3 @@
-const { response } = require("./util");
-
 module.exports.notify = async (text) => {
     const body = {
         'text': text,
