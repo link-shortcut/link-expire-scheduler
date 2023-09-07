@@ -21,7 +21,7 @@ module.exports.run = async (event, context) => {
         deletedLinkHistoryCount: deleteLinkHistoryResult.affectedRows
       }
     );
-    slackNoti.notifyIfFailRetry(slackText, slackNotiFailRetryCount);
+    await slackNoti.notifyIfFailRetry(slackText, slackNotiFailRetryCount);
 
     return response(200, {
       message: "만료 링크 삭제 작업에 성공했습니다.",
@@ -30,7 +30,7 @@ module.exports.run = async (event, context) => {
     console.error(err);
 
     const slackText = makeBaseText({ time: time, success: false });
-    slackNoti.notifyIfFailRetry(slackText, slackNotiFailRetryCount);
+    await slackNoti.notifyIfFailRetry(slackText, slackNotiFailRetryCount);
 
     return response(500, {
       message: "만료 링크 삭제 작업에 실패했습니다.",
