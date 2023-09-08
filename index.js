@@ -50,6 +50,10 @@ const getExpiredLinkIds = async (time) => {
 }
 
 const deleteLinkHistory = async (expiredLinkIds) => {
+  if (expiredLinkIds.length < 1) {
+    return { affectedRows: 0 };
+  }
+
   const deleteLinkHistoryResult = await DB.execute({
     psmt: "delete from link_history where link_history.link_id in (?)",
     binding: [expiredLinkIds]
@@ -59,6 +63,10 @@ const deleteLinkHistory = async (expiredLinkIds) => {
 };
 
 const deleteLink = async (expiredLinkIds) => {
+  if (expiredLinkIds.length < 1) {
+    return { affectedRows: 0 };
+  }
+
   const deleteLinkResult = await DB.execute({
     psmt: "delete from link where link.id in (?)",
     binding: [expiredLinkIds]
