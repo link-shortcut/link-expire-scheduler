@@ -4,7 +4,7 @@ module.exports.notify = async (text) => {
   };
 
   try {
-    await fetch(process.env.SLACK_NOTI_URL, {
+    const response = await fetch(process.env.SLACK_NOTI_URL, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -12,6 +12,9 @@ module.exports.notify = async (text) => {
       body: JSON.stringify(body),
     });
 
+    if (!response.ok) {
+      throw new Error("Sending Slack Notification is Failed");
+    }
     console.log(`Slack Notification is Successful. text: ${text}`);
   } catch (err) {
     console.error(err);
