@@ -5,6 +5,8 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
+    "@js-joda/core": "^5.5.3",
+    "@js-joda/timezone": "^2.18.0",
     "mysql2": "^3.6.0"
   }
 }
