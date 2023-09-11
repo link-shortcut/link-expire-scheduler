@@ -1,10 +1,14 @@
 const DB = require("./common/database.js");
-const slackNoti = require("./common/slack_notification.js");
 const {
   response,
   formatISOLocalDateTime,
   getServerTimeKST,
 } = require("./common/util.js");
+const {
+  slackNotifyIfFailRetry,
+  makeBaseText,
+  makeSuccessText,
+} = require("./common/slack_notification.js");
 
 module.exports.run = async (event, context) => {
   const slackNotiFailRetryCount = process.env.SLACK_NOTI_FAIL_RETRY_COUNT;
@@ -24,7 +28,7 @@ module.exports.run = async (event, context) => {
       deletedLinkCount: deleteLinkResult.affectedRows,
       deletedLinkHistoryCount: deleteLinkHistoryResult.affectedRows,
     });
-    await slackNoti.notifyIfFailRetry(slackText, slackNotiFailRetryCount);
+    await slackNotifyIfFailRetry(slackText, slackNotiFailRetryCount);
 
     return response(200, {
       message: "만료 링크 삭제 작업에 성공했습니다.",
@@ -33,7 +37,7 @@ module.exports.run = async (event, context) => {
     console.error(err);
 
     const slackText = makeBaseText({ time: time, success: false });
-    await slackNoti.notifyIfFailRetry(slackText, slackNotiFailRetryCount);
+    await slackNotifyIfFailRetry(slackText, slackNotiFailRetryCount);
 
     return response(500, {
       message: "만료 링크 삭제 작업에 실패했습니다.",
@@ -82,18 +86,3 @@ const deleteResultLog = (jobName, result) => {
   console.log(`${jobName} DB Server Status : ${result.serverStatus}`);
   console.log(`${jobName} deleted Row Count : ${result.affectedRows}`);
 };
-
-const makeSuccessText = ({
-  time,
-  success,
-  deletedLinkCount,
-  deletedLinkHistoryCount,
-}) =>
-  `${makeBaseText({ time, success })}
-삭제된 만료 Link 수 : ${deletedLinkCount}
-삭제된 LinkHistory 수 : ${deletedLinkHistoryCount}`;
-
-const makeBaseText = ({ time, success }) =>
-  `작업 성공 여부 : ${success === true ? "성공" : "실패"}
-작업 시작 시간 : ${formatDate(time)}
-작업 소요 시간 : ${new Date() - time}ms`;
