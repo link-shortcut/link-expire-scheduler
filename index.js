@@ -1,15 +1,20 @@
 const DB = require("./common/database.js");
-const { response, formatDate } = require("./common/util.js");
 const slackNoti = require("./common/slack_notification.js");
+const {
+  response,
+  formatISOLocalDateTime,
+  getServerTimeKST,
+} = require("./common/util.js");
 
 module.exports.run = async (event, context) => {
   const slackNotiFailRetryCount = process.env.SLACK_NOTI_FAIL_RETRY_COUNT;
 
-  const time = new Date();
-  console.log(`Link expire function ran at ${formatDate(time)}`);
+  const time = getServerTimeKST();
+  const formattedTime = formatISOLocalDateTime(time);
+  console.log(`Link expire function ran at ${formattedTime}`);
 
   try {
-    const expiredLinkIds = await getExpiredLinkIds(time);
+    const expiredLinkIds = await getExpiredLinkIds(formattedTime);
     const deleteLinkHistoryResult = await deleteLinkHistory(expiredLinkIds);
     const deleteLinkResult = await deleteLink(expiredLinkIds);
 

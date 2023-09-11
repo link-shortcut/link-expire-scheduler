@@ -1,3 +1,6 @@
+const { ZonedDateTime, ZoneId, DateTimeFormatter } = require("@js-joda/core");
+require("@js-joda/timezone");
+
 module.exports.response = (statusCode, body) => {
   console.log("on response. statusCode: %s, body: %j", statusCode, body);
   return {
@@ -6,5 +9,8 @@ module.exports.response = (statusCode, body) => {
   };
 };
 
-module.exports.formatDate = (date) =>
-  date.toISOString().replace(/T/, " ").replace(/\..+/, "");
+module.exports.formatISOLocalDateTime = (dateTime) =>
+  dateTime.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME);
+
+module.exports.getServerTimeKST = () =>
+  ZonedDateTime.now(ZoneId.of("Asia/Seoul"));
