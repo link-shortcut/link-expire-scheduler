@@ -1,121 +1,60 @@
-<!--
-title: 'AWS Node Scheduled Cron example in NodeJS'
-description: 'This is an example of creating a function that runs as a cron job using the serverless ''schedule'' event.'
-layout: Doc
-framework: v3
-platform: AWS
-language: nodeJS
-priority: 1
-authorLink: 'https://github.com/0dj0bz'
-authorName: 'Rob Abbott'
-authorAvatar: 'https://avatars3.githubusercontent.com/u/5679763?v=4&s=140'
--->
+# Link Shortcut Expire Scheduler
 
-# Serverless Framework Node Scheduled Cron on AWS
+### 이미 만료된 단축 URL을 DB에서 주기적으로 삭제해주는 스케줄러
 
-This template demonstrates how to develop and deploy a simple cron-like service running on AWS Lambda using the traditional Serverless Framework.
+## 기술 스택
 
-## Schedule event type
+- Node.js
+- Serverless Framework
 
-This examples defines two functions, `cron` and `secondCron`, both of which are triggered by an event of `schedule` type, which is used for configuring functions to be executed at specific time or in specific intervals. For detailed information about `schedule` event, please refer to corresponding section of Serverless [docs](https://serverless.com/framework/docs/providers/aws/events/schedule/).
+## 스케줄러로 구현한 이유
 
-When defining `schedule` events, we need to use `rate` or `cron` expression syntax.
+단축 URL 조회시 현재 시간 기준 만료 일시와 비교해서 가져오기 때문에 서버의 기능상에 문제는 발생하지 않았습니다. 하지만, 만료된 단축 URL을 지속적으로 DB에 보관하게 된다면 가용 URL Path 리소스가 줄어들고, 더 많은 데이터에서 조회하므로 성능상 악영향을 미칠 것으로 예상하였습니다. (URL Path에 Unique 제약 조건 추가되어있음)
+따라서 **만료된 단축 URL은 주기적으로 DB 상에서 삭제하기로 결정했습니다**.
 
-### Rate expressions syntax
+### 문제 인식
 
-```pseudo
-rate(value unit)
-```
+만료키를 이용해 임의 만료하는 경우 만료 시점에 바로 DB에 DELETE Query를 날려 삭제하면 됩니다.
 
-`value` - A positive number
+하지만 **만료일자가 지난 경우 어떤 방법이 가장 효율적일지 고민해보았습니다**.
 
-`unit` - The unit of time. ( minute | minutes | hour | hours | day | days )
+### 문제 해결
 
-In below example, we use `rate` syntax to define `schedule` event that will trigger our `rateHandler` function every minute
+1. **만료 이후에도 DB에 남아있다가, 만료된 단축 URL에 접속을 요청한 시점에 DB에서 삭제한다.**
+   - 구현이 쉽다.
+   - 만약 해당 URL Path로 접속 요청을 하지 않는다면 이론상 영구히 남을 수 있다.
+   - URL Path의 Unique 제약 조건으로 인해 URL Path의 리소스 낭비가 발생할 수 있다.
+2. **매 특정 시점마다 배치 프로그램을 실행해 만료된 단축 URL을 삭제한다.**
+   - 만료 시점이 항상 0시 0분이므로, 매일 1번만 돌아도 충분하다.
+   - URL Path 리소스 낭비를 최소화할 수 있다.
+   - 구현이 1번에 비해 어렵고, 추가적인 관리 포인트가 생긴다.
 
-```yml
-functions:
-  rateHandler:
-    handler: handler.run
-    events:
-      - schedule: rate(1 minute)
-```
+**결과적으로 URL Path 리소스 효율성 측면, 학습 측면에서 2번을 선택**했습니다.
 
-Detailed information about rate expressions is available in official [AWS docs](https://docs.aws.amazon.com/AmazonCloudWatch/latest/events/ScheduledEvents.html#RateExpressions).
+그리고 배치 프로그램 구현 방식에 대해 고민했습니다.
 
+1. **Spring Batch로 구현**
+   - 대용량 데이터 처리에 최적화되어 고성능
+   - 로깅, 통계처리, 트랜잭션 관리 등 재사용 가능한 필수 기능 지원
+   - 예외 사항과 비정상적인 동작에 대한 처리 기능 제공
+   - Spring Batch에 대한 러닝 커브 존재 (현재 미경험 기술 스택)
+   - 별도의 서버 관리 필요
+2. **AWS Lambda (EventBridge 트리거)로 구현**
+   - 1번에 비해 상대적으로 구현이 쉬움
+   - Serverless 서비스로 코드만 작성하면 AWS에서 자동으로 관리를 해줌 (운영이 쉽다)
+   - 이전에 사용해본 경험이 있어 빠른 도입이 가능
+   - 고성능 대용량 데이터 처리, 예외 사항 처리 등의 기능을 기본적으로 제공해주지 않는다
+3. **Linux Crontab으로 구현**
+   - 1번에 비해 상대적으로 구현이 쉬움
+   - 별도의 Linux 서버 관리 필요
+   - 고성능 대용량 데이터 처리, 예외 사항 처리 등의 기능을 기본적으로 제공해주지 않는다
 
-### Cron expressions syntax
+### 결론
 
-```pseudo
-cron(Minutes Hours Day-of-month Month Day-of-week Year)
-```
+**빠른 도입이 가능하다는 점과 운영이 쉽다는 점으로 2번으로 결정**했습니다.
 
-All fields are required and time zone is UTC only.
+현재 매일 0시 1분에 AWS Lambda로 구현된 스케줄러가 실행되는 방식으로 만료된 단축 URL을 삭제하고 있습니다.
 
-| Field         | Values         | Wildcards     |
-| ------------- |:--------------:|:-------------:|
-| Minutes       | 0-59           | , - * /       |
-| Hours         | 0-23           | , - * /       |
-| Day-of-month  | 1-31           | , - * ? / L W |
-| Month         | 1-12 or JAN-DEC| , - * /       |
-| Day-of-week   | 1-7 or SUN-SAT | , - * ? / L # |
-| Year          | 192199      | , - * /       |
-
-In below example, we use `cron` syntax to define `schedule` event that will trigger our `cronHandler` function every second minute every Monday through Friday
-
-```yml
-functions:
-  cronHandler:
-    handler: handler.run
-    events:
-      - schedule: cron(0/2 * ? * MON-FRI *)
-```
-
-Detailed information about cron expressions in available in official [AWS docs](https://docs.aws.amazon.com/AmazonCloudWatch/latest/events/ScheduledEvents.html#CronExpressions).
-
-
-## Usage
-
-### Deployment
-
-This example is made to work with the Serverless Framework dashboard, which includes advanced features such as CI/CD, monitoring, metrics, etc.
-
-In order to deploy with dashboard, you need to first login with:
-
-```
-serverless login
-```
-
-and then perform deployment with:
-
-```
-serverless deploy
-```
-
-After running deploy, you should see output similar to:
-
-```bash
-Deploying aws-node-scheduled-cron-project to stage dev (us-east-1)
-
-✔ Service deployed to stack aws-node-scheduled-cron-project-dev (205s)
-
-functions:
-  rateHandler: aws-node-scheduled-cron-project-dev-rateHandler (2.9 kB)
-  cronHandler: aws-node-scheduled-cron-project-dev-cronHandler (2.9 kB)
-```
-
-There is no additional step required. Your defined schedules becomes active right away after deployment.
-
-### Local invocation
-
-In order to test out your functions locally, you can invoke them with the following command:
-
-```
-serverless invoke local --function rateHandler
-```
-
-After invocation, you should see output similar to:
-
-```bash
-Your cron function "aws-node-scheduled-cron-dev-rateHandler" ran at Fri Mar 05 2021 15:14:39 GMT+0100 (Central European Standard Time)
-```
+- 0시 0분에 정확하게 돌았을 경우 삭제되지 않을 수도 있기 때문에 1분 늦게 돌도록 설정
+- 단축 URL에 접속시 만료 여부를 확인하기 때문에 1분 정도 텀이 생긴다고 서비스에 문제가 생기진 않는다
+- 또한 배치 완료 후 슬랙에 작업 결과를 알림으로 보내준다. (성공 / 실패 여부, 삭제된 단축 URL 개수 등)
